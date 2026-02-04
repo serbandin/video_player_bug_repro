@@ -1,56 +1,40 @@
 # Video Player Bug Reproduction
 
-Minimal reproduction project for [flutter/flutter#166481](https://github.com/flutter/flutter/issues/166481).
+A minimal Flutter app to test if an Android device has the hardware buffer defect that causes `MediaCodecVideoRenderer` errors.
 
-## Bug Description
+## How to Test a Device
 
-Video playback fails on Android 10 (API 29) devices with hardware decoder errors:
+1. Run the app in **debug mode** on the target device
+2. Try both videos from the dropdown menu
+
+### Device HAS the defect (should return `true`)
+
+Both videos fail with "Video initialization failed" and show a `PlatformException` with `MediaCodecVideoRenderer error`:
+
+![Defect present - video fails to initialize](docs/defect_present.png)
+
+In logcat, look for these key error lines:
 
 ```
-setPortMode on output to DynamicANWBuffer failed w/ err -2147483648
-Failed to allocate output port buffers after port reconfiguration: (-1010)
-Decoder failed: OMX.hisi.video.decoder.avc
-MediaCodecVideoRenderer error - IllegalStateException
+E/ACodec: Failed to allocate buffers after transitioning to IDLE state (error 0xfffffc0e)
+W/ACodec: [OMX.hisi.video.decoder.avc] setting nBufferCountActual to 12 failed: -1010
+E/MediaCodecVideoRenderer: Video codec error
 ```
 
-## Environment
+### Device does NOT have the defect (should return `false`)
 
-- **Flutter**: 3.38.9 (stable)
-- **video_player**: ^2.9.5
-- **Target device**: Android 10 (API 29) - tested on HUAWEI SNE-LX1
+Both videos play successfully:
 
-## Reproduction Steps
+![No defect - video plays normally](docs/no_defect.png)
 
-1. Clone this project
-2. Run on an Android 10 (API 29) device:
-   ```bash
-   flutter run
-   ```
-3. Observe video fails to play with hardware decoder errors in logcat
+**Note:** If only one video works and the other fails, this may indicate a different bug.
 
-## Test with Different Renderers
+## Workaround Verification
 
-### With Impeller (default on newer Flutter):
-```bash
-flutter run --enable-impeller
+To confirm the defect is related to hardware buffers, uncomment the following line in `MainActivity.kt`:
+
+```kotlin
+// FlutterRenderer.debugForceSurfaceProducerGlTextures = true
 ```
 
-### With Skia:
-```bash
-flutter run --no-enable-impeller
-```
-
-## Expected Behavior
-
-Video should play normally.
-
-## Actual Behavior
-
-Video fails to initialize/play. Hardware video decoder cannot allocate buffers.
-
-## Logs
-
-To capture logs:
-```bash
-adb logcat | grep -E "(video|MediaCodec|ExoPlayer|OMX)"
-```
+If setting this flag makes all videos play successfully, the device has the hardware buffer defect and `hasAndroidHardwareBufferDefect` should return `true`.
